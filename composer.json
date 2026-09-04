@@ -11,7 +11,9 @@
     "require": {
         "php": "^8.2",
         "laravel/framework": "^12.0",
-        "laravel/tinker": "^2.10.1"
+        "laravel/tinker": "^2.10.1",
+        "phpseclib/phpseclib": "*",
+        "pragmarx/google2fa-laravel": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -28,7 +30,14 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "classmap": [
+            "app/Services/ProfileSecurity.php",
+            "app/Services/ItemSecurity.php",
+            "app/Services/PostSecurity.php",
+            "app/Services/NotificationService.php",
+            "app/Services/ExchangeRequestSecurity.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

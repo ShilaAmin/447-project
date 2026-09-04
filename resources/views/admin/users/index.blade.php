@@ -26,6 +26,7 @@
           <th>Name</th>
           <th>Email</th>
           <th>Phone</th>
+          <th>Address</th>
           <th>NID</th>
           <th>Joined</th>
           <th style="width: 200px;">Actions</th>
@@ -37,10 +38,11 @@
             <td class="fw-semibold">{{ $user->name }}</td>
             <td>{{ $user->email }}</td>
             <td>{{ $user->phone ?? '—' }}</td>
+            <td>{{ $user->address ?? '—' }}</td>
             <td>{{ $user->nid_no ?? '—' }}</td>
             <td>{{ $user->created_at?->format('Y-m-d') }}</td>
             <td>
-              @if($user->email === 'admin@gmail.com')
+              @if(!empty($user->is_admin))
                 <span class="badge bg-secondary">Admin</span>
               @else
                 <form action="{{ route('admin.users.delete', $user->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this user?')">
@@ -55,11 +57,12 @@
             </td>
           </tr>
         @empty
-          <tr><td colspan="6" class="text-muted">No users found.</td></tr>
+          <tr><td colspan="7" class="text-muted">No users found.</td></tr>
         @endforelse
       </tbody>
     </table>
   </div>
+  <div class="mt-3">{{ $users->links() }}</div>
 </div>
 </body>
 </html>

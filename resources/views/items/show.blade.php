@@ -11,7 +11,7 @@
   @include('external.nav')
 
   @php
-    $isAdmin = isset($isAdmin) ? $isAdmin : (session('user_email') === 'admin@gmail.com');
+    $isAdmin = isset($isAdmin) ? $isAdmin : (bool) session('is_admin');
   @endphp
 
   <div class="container mt-5">

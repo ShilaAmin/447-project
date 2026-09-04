@@ -6,15 +6,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Post;
 use App\Models\Comment;
+use App\Services\PostSecurity;
+use App\Services\ProfileSecurity;
 
 class CommunityController extends Controller
 {
     private function isAdmin(): bool
     {
-        return session()->has('user_email') && session('user_email') === 'admin@gmail.com';
+        return (bool) session('is_admin');
     }
 
-    public function index()
+    public function index(PostSecurity $posts, ProfileSecurity $profiles)
     {
         if (!session()->has('user_id')) {
             return redirect('/login')->with('error', 'Please login first.');
@@ -22,16 +24,33 @@ class CommunityController extends Controller
 
         $isAdmin = $this->isAdmin();
 
-        // newest first; eager-load author & comments with their authors
-        $posts = Post::with(['author', 'comments.author'])
+        $paginator = Post::with(['author', 'comments.author'])
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        return view('community.index', compact('posts', 'isAdmin'));
+        $paginator->getCollection()->transform(function ($post) use ($posts, $profiles) {
+            $hydrated = $posts->hydratePost($post);
+            if (!$hydrated) {
+                $post->setAttribute('title', '[integrity failed]');
+                $post->setAttribute('content', '');
+            }
+            if ($post->author) {
+                $post->setRelation('author', $profiles->hydrateName($post->author));
+            }
+            $post->setRelation('comments', $post->comments->map(function ($c) use ($posts, $profiles) {
+                $hc = $posts->hydrateComment($c) ?? $c;
+                if ($hc->author) {
+                    $hc->setRelation('author', $profiles->hydrateName($hc->author));
+                }
+                return $hc;
+            }));
+            return $post;
+        });
+
+        return view('community.index', ['posts' => $paginator, 'isAdmin' => $isAdmin]);
     }
 
-    // ADMIN: create post
-    public function store(Request $request)
+    public function store(Request $request, PostSecurity $posts)
     {
         if (!$this->isAdmin()) {
             return redirect()->route('community.index')->with('error', 'Unauthorized.');
@@ -48,9 +67,15 @@ class CommunityController extends Controller
             $photoPath = $request->file('photo')->store('community', 'public');
         }
 
-        Post::create([
-            'title'   => $request->title,
+        $enc = $posts->encryptPost([
+            'title' => $request->title,
             'content' => $request->content,
+        ]);
+
+        Post::create([
+            'title'   => $enc['title'],
+            'content' => $enc['content'],
+            'mac'     => $enc['mac'],
             'photo'   => $photoPath,
             'user_id' => session('user_id'),
         ]);
@@ -58,19 +83,22 @@ class CommunityController extends Controller
         return redirect()->route('community.index')->with('success', 'Post published.');
     }
 
-    // ADMIN: edit form
-    public function edit($id)
+    public function edit($id, PostSecurity $posts)
     {
         if (!$this->isAdmin()) {
             return redirect()->route('community.index')->with('error', 'Unauthorized.');
         }
 
         $post = Post::findOrFail($id);
-        return view('community.edit', compact('post'));
+        $hydrated = $posts->hydratePost($post);
+        if (!$hydrated) {
+            return redirect()->route('community.index')->with('error', 'Post integrity check failed.');
+        }
+
+        return view('community.edit', ['post' => $hydrated]);
     }
 
-    // ADMIN: update post
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, PostSecurity $posts)
     {
         if (!$this->isAdmin()) {
             return redirect()->route('community.index')->with('error', 'Unauthorized.');
@@ -85,21 +113,25 @@ class CommunityController extends Controller
         ]);
 
         if ($request->hasFile('photo')) {
-            // optional: delete old photo
             if ($post->photo) {
                 Storage::disk('public')->delete($post->photo);
             }
             $post->photo = $request->file('photo')->store('community', 'public');
         }
 
-        $post->title = $request->title;
-        $post->content = $request->content;
+        $enc = $posts->encryptPost([
+            'title' => $request->title,
+            'content' => $request->content,
+        ]);
+
+        $post->title = $enc['title'];
+        $post->content = $enc['content'];
+        $post->mac = $enc['mac'];
         $post->save();
 
         return redirect()->route('community.index')->with('success', 'Post updated.');
     }
 
-    // ADMIN: delete post
     public function destroy($id)
     {
         if (!$this->isAdmin()) {
@@ -108,20 +140,17 @@ class CommunityController extends Controller
 
         $post = Post::findOrFail($id);
 
-        // delete photo if exists
         if ($post->photo) {
             Storage::disk('public')->delete($post->photo);
         }
 
-        // delete comments then post
         $post->comments()->delete();
         $post->delete();
 
         return redirect()->route('community.index')->with('success', 'Post deleted.');
     }
 
-    // USERS: add comment
-    public function storeComment(Request $request, $postId)
+    public function storeComment(Request $request, $postId, PostSecurity $posts)
     {
         if (!session()->has('user_id')) {
             return redirect('/login')->with('error', 'Please login first.');
@@ -132,11 +161,13 @@ class CommunityController extends Controller
         ]);
 
         $post = Post::findOrFail($postId);
+        $enc = $posts->encryptComment($request->content);
 
         Comment::create([
             'post_id' => $post->id,
             'user_id' => session('user_id'),
-            'content' => $request->content,
+            'content' => $enc['content'],
+            'mac' => $enc['mac'],
         ]);
 
         return redirect()->route('community.index')->with('success', 'Comment added.');
