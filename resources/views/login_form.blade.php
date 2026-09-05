@@ -20,8 +20,7 @@
       @if(session('otp_secret'))
         <div class="alert alert-info">
           <p class="mb-2"><strong>Save your 2FA secret:</strong> <code>{{ session('otp_secret') }}</code></p>
-          <p class="mb-2 small">Add it in Google Authenticator / Authy (manual entry), or open this otpauth URL:</p>
-          <p class="small text-break mb-0"><a href="{{ session('otp_qr') }}">{{ session('otp_qr') }}</a></p>
+          <p class="small mb-0">Add this key in Google Authenticator / Authy using manual entry, then log in.</p>
         </div>
       @endif
 

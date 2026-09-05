@@ -66,12 +66,9 @@ class UserController extends Controller
         $user->ecc_public_key = $userKeys['ecc_public_key'];
         $user->save();
 
-        $qrUrl = $google2fa->getQRCodeUrl('ExchangeIT', $request->email, $secret);
-
         return redirect('/login')->with([
-            'success' => 'Account created successfully! Scan the QR code with your authenticator app, then login.',
+            'success' => 'Account created successfully! Save your 2FA secret in an authenticator app, then login.',
             'otp_secret' => $secret,
-            'otp_qr' => $qrUrl,
         ]);
     }
 
